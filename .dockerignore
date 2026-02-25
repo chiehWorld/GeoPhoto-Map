@@ -1,0 +1,7 @@
+node_modules
+dist
+thumbnails
+photos.db
+.git
+.env
+*.log

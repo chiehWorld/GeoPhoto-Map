@@ -1,0 +1,6 @@
+{
+  "photosDirectories": [
+    "./photos",
+    "/app/photos_external"
+  ]
+}

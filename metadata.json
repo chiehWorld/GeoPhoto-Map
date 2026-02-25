@@ -1,0 +1,5 @@
+{
+  "name": "GeoPhoto Map",
+  "description": "A world map photo gallery that automatically extracts GPS metadata from your images and clusters them by location.",
+  "requestFramePermissions": []
+}
