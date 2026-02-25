@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { 
@@ -11,11 +11,7 @@ import {
   Info,
   MapPin,
   ChevronRight,
-  ChevronDown,
-  X,
-  Plus,
-  Folder,
-  Search
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -63,17 +59,6 @@ const createPhotoIcon = (thumbUrl: string) => {
   });
 };
 
-// Map Event Handler for Manual Placement
-function MapClickHandler({ onMapClick, active }: { onMapClick: (lat: number, lng: number) => void, active: boolean }) {
-  useMapEvents({
-    click(e) {
-      if (active) {
-        onMapClick(e.latlng.lat, e.latlng.lng);
-      }
-    },
-  });
-  return null;
-}
 
 export default function App() {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -81,9 +66,7 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState<{ isScanning: boolean, lastScanTime: string | null }>({ isScanning: false, lastScanTime: null });
   const [config, setConfig] = useState<{ photosDirectories: string[] }>({ photosDirectories: [] });
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [manualPlacementMode, setManualPlacementMode] = useState<{ photoId: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [unmappedCollapsed, setUnmappedCollapsed] = useState(true);
 
   const fetchPhotos = useCallback(async () => {
     try {
@@ -138,26 +121,7 @@ export default function App() {
     }
   };
 
-  const handleManualPlacement = async (lat: number, lng: number) => {
-    if (!manualPlacementMode) return;
-    
-    try {
-      const res = await fetch(`/api/photos/${manualPlacementMode.photoId}/location`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ latitude: lat, longitude: lng }),
-      });
-      if (res.ok) {
-        setManualPlacementMode(null);
-        fetchPhotos();
-      }
-    } catch (err) {
-      console.error('Failed to update location:', err);
-    }
-  };
-
   const photosWithGps = photos.filter(p => p.has_gps === 1 && p.latitude !== null && p.longitude !== null);
-  const photosWithoutGps = photos.filter(p => p.has_gps === 0);
 
   return (
     <div className="flex h-screen w-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
@@ -212,64 +176,6 @@ export default function App() {
                 </p>
               )}
             </div>
-
-            {/* Unmapped Photos */}
-            {photosWithoutGps.length > 0 && (
-              <div className="space-y-3">
-                <button 
-                  onClick={() => setUnmappedCollapsed(!unmappedCollapsed)}
-                  className="w-full flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider group-hover:text-zinc-200 transition-colors">Needs Location</h3>
-                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-full border border-amber-500/20">
-                      {photosWithoutGps.length}
-                    </span>
-                  </div>
-                  {unmappedCollapsed ? (
-                    <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300" />
-                  )}
-                </button>
-                
-                <AnimatePresence>
-                  {!unmappedCollapsed && (
-                    <motion.div 
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="grid grid-cols-3 gap-2 pt-1">
-                        {photosWithoutGps.map(photo => (
-                          <motion.div 
-                            key={photo.id}
-                            whileHover={{ scale: 1.05 }}
-                            onClick={() => setManualPlacementMode({ photoId: photo.id })}
-                            className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-colors ${manualPlacementMode?.photoId === photo.id ? 'border-emerald-500' : 'border-transparent'}`}
-                          >
-                            <img 
-                              src={`/api/thumbnails/${photo.thumbnail_path}`} 
-                              alt={photo.filename}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                              <MapPin className="w-5 h-5 text-white" />
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                      {manualPlacementMode && (
-                        <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-400">
-                          Click on the map to place this photo.
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
           </div>
         </div>
       </motion.aside>
@@ -297,11 +203,6 @@ export default function App() {
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
           
-          <MapClickHandler 
-            active={!!manualPlacementMode} 
-            onMapClick={handleManualPlacement} 
-          />
-
           <MarkerClusterGroup
             chunkedLoading
             iconCreateFunction={createClusterCustomIcon}
@@ -369,20 +270,6 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Manual Mode Overlay */}
-        {manualPlacementMode && (
-          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-3 animate-pulse">
-            <MapPin className="w-5 h-5" />
-            Select location on map for the photo
-            <button 
-              onClick={() => setManualPlacementMode(null)}
-              className="ml-2 p-1 bg-white/20 hover:bg-white/30 rounded-full"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
       </main>
 
       <style>{`
