@@ -38,7 +38,8 @@ async function startServer() {
 
   // Load configuration helper
   const loadConfig = () => {
-    const configPath = path.join(__dirname, "config.json");
+    const configDir = process.env.NODE_ENV === 'production' ? "/app/data" : __dirname;
+    const configPath = path.join(configDir, "config.json");
     let cfg = { photosDirectories: ["./photos"] };
     if (fs.existsSync(configPath)) {
       try {
@@ -57,7 +58,8 @@ async function startServer() {
   };
 
   const saveConfig = (cfg: any) => {
-    const configPath = path.join(__dirname, "config.json");
+    const configDir = process.env.NODE_ENV === 'production' ? "/app/data" : __dirname;
+    const configPath = path.join(configDir, "config.json");
     fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
   };
 
