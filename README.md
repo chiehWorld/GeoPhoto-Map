@@ -48,7 +48,6 @@ GeoPhoto Map 是一款专为摄影爱好者和 NAS 用户设计的个人照片�
 ### 2. 构建镜像
 ```bash
 docker build -t geophoto-map .
-docker save geophoto-map > geophoto-map.tar
 ```
 
 ### 3. 运行容器
