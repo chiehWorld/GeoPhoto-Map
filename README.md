@@ -48,6 +48,7 @@ GeoPhoto Map 是一款专为摄影爱好者和 NAS 用户设计的个人照片�
 ### 2. 构建镜像
 ```bash
 docker build -t geophoto-map .
+docker save geophoto-map > geophoto-map.tar
 ```
 
 ### 3. 运行容器
@@ -61,9 +62,28 @@ docker run -d --name geophoto -p 3000:3000 \
 
 ## 📂 目录说明
 
-- `/app/photos_external`: 挂载您的原始照片库（支持递归扫描）。
-- `/app/thumbnails`: 存放生成的缩略图文件（建议持久化）。
-- `/app/data`: 存放 `photos.db` 数据库文件（建议持久化）。
+在 Docker 的 volumes 配置中，冒号（:）后面的部分是容器内部的路径。你可以根据自己的喜好自由命名，但为了方便管理和在应用界面中识别，建议遵循以下几个原则：
+
+1. 推荐的命名方式：建议统一使用 /app/ 作为前缀，后面接一个描述性的名称。
+例如：
+```
+  - "/volume1/photo:/app/photos_main"           # 主照片库
+  - "/volume2/backup/iphone:/app/photos_iphone" # 手机备份
+  - "/volume3/archive/2023:/app/photos_2023"    # 年度归档
+```
+
+2. 命名建议:
+- 使用下划线或连字符：避免使用空格（例如用 photos_main 而不是 photos main）。
+- 具有辨识度：因为这些名字（如 /app/photos_main）会直接显示在你网页端的“Scan Directories”列表中，起一个你能一眼看出是哪个文件夹的名字会很有帮助。
+- 不要冲突：确保容器内路径是唯一的，不要把两个不同的物理文件夹映射到同一个容器路径。
+
+3. 如何在应用中使用:
+- 当你按照 YAML 挂载好并启动容器后：
+  - 打开 GeoPhoto Map 网页。
+  - 在左侧边栏底部的 Scan Directories 区域。
+  - 在输入框中输入你在 YAML 中定义的容器内路径（例如 /app/photos_main）。
+  - 点击 "+" 号添加。
+  - 对其他路径（如 /app/photos_iphone）重复上述步骤。
 
 ## 💡 迁移至群晖 (Synology)
 
