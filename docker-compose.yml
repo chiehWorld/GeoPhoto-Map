@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  geophoto:
+    image: geophoto-map:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      # 1. 核心数据卷（现在包含数据库 AND 目录配置文件）
+      - "./geophoto_data:/app/data"
+      
+      # 2. 缩略图缓存卷（建议持久化，否则重启后 1.5 万张照片要重新生成缩略图）
+      - "./geophoto_thumbs:/app/thumbnails"
+      
+      # 3. 您的照片共享文件夹（可以挂载多个）
+      - "/volume1/homes/user/Photos:/app/nas_photos_main"
+      - "/volume2/backup/OldPhotos:/app/nas_photos_backup"
+    restart: always
