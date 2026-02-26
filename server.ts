@@ -25,7 +25,9 @@ db.exec(`
     timestamp TEXT,
     has_gps INTEGER DEFAULT 0,
     thumbnail_path TEXT
-  )
+  );
+  CREATE INDEX IF NOT EXISTS idx_has_gps ON photos(has_gps);
+  CREATE INDEX IF NOT EXISTS idx_path ON photos(path);
 `);
 
 async function startServer() {
@@ -54,6 +56,11 @@ async function startServer() {
     return cfg;
   };
 
+  const saveConfig = (cfg: any) => {
+    const configPath = path.join(__dirname, "config.json");
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+  };
+
   const THUMBS_DIR = path.join(__dirname, "thumbnails");
   if (!fs.existsSync(THUMBS_DIR)) fs.mkdirSync(THUMBS_DIR, { recursive: true });
 
@@ -70,9 +77,19 @@ async function startServer() {
     }
   });
 
-  // API: Get all photos
-  app.get("/api/photos", (req, res) => {
-    const photos = db.prepare("SELECT * FROM photos").all();
+  // API: Get photo stats (Fast)
+  app.get("/api/stats", (req, res) => {
+    const total = db.prepare("SELECT COUNT(*) as count FROM photos").get() as { count: number };
+    const mapped = db.prepare("SELECT COUNT(*) as count FROM photos WHERE has_gps = 1").get() as { count: number };
+    res.json({
+      total: total.count,
+      mapped: mapped.count
+    });
+  });
+
+  // API: Get only mapped photos for the map (Lightweight)
+  app.get("/api/photos/mapped", (req, res) => {
+    const photos = db.prepare("SELECT id, latitude, longitude, thumbnail_path, filename, timestamp FROM photos WHERE has_gps = 1").all();
     res.json(photos);
   });
 
@@ -81,9 +98,22 @@ async function startServer() {
     res.json(loadConfig());
   });
 
+  app.post("/api/config", (req, res) => {
+    const { photosDirectories } = req.body;
+    if (!Array.isArray(photosDirectories)) {
+      return res.status(400).json({ error: "photosDirectories must be an array" });
+    }
+    const cfg = loadConfig();
+    cfg.photosDirectories = photosDirectories;
+    saveConfig(cfg);
+    res.json({ success: true, config: cfg });
+  });
+
   // Scanning Logic
   let isScanning = false;
   let lastScanTime: string | null = null;
+  let currentScanTotal = 0;
+  let currentScanProcessed = 0;
 
   const getAllFiles = (dirPath: string, arrayOfFiles: string[] = []) => {
     try {
@@ -125,26 +155,33 @@ async function startServer() {
     const currentConfig = loadConfig();
     const imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".tiff", ".tif", ".bmp"];
     let addedCount = 0;
+    
+    currentScanTotal = 0;
+    currentScanProcessed = 0;
 
     try {
+      // First pass: count all image files to get total
+      const allDirsFiles: { dir: string, files: string[] }[] = [];
       for (const dir of currentConfig.photosDirectories) {
         const PHOTOS_DIR = path.isAbsolute(dir) ? dir : path.join(__dirname, dir);
-        if (!fs.existsSync(PHOTOS_DIR)) {
-          console.warn(`Skipping non-existent directory: ${PHOTOS_DIR}`);
-          continue;
+        if (fs.existsSync(PHOTOS_DIR)) {
+          const files = getAllFiles(PHOTOS_DIR);
+          const imageFiles = files.filter(f => imageExtensions.includes(path.extname(f).toLowerCase()));
+          allDirsFiles.push({ dir: PHOTOS_DIR, files: imageFiles });
+          currentScanTotal += imageFiles.length;
         }
+      }
 
-        const allFiles = getAllFiles(PHOTOS_DIR);
-        console.log(`Found ${allFiles.length} total files in ${PHOTOS_DIR}`);
-        let imageFilesCount = 0;
-        for (const filePath of allFiles) {
+      console.log(`Total images to scan: ${currentScanTotal}`);
+
+      for (const item of allDirsFiles) {
+        for (const filePath of item.files) {
           try {
+            currentScanProcessed++;
             const ext = path.extname(filePath).toLowerCase();
-            if (!imageExtensions.includes(ext)) continue;
-            imageFilesCount++;
-
             const file = path.basename(filePath);
             const existing = db.prepare("SELECT id FROM photos WHERE path = ?").get(filePath);
+            
             if (existing) continue;
 
             let lat = null;
@@ -175,43 +212,30 @@ async function startServer() {
               console.warn(`Exiftool failed for ${file}: ${exifError.message}`);
             }
 
-            // Try to read file into buffer once
-            let fileBuffer: Buffer;
-            try {
-              fileBuffer = await fs.promises.readFile(filePath);
-              if (!fileBuffer || fileBuffer.length === 0) {
-                console.error(`Error: File ${file} is empty.`);
-                continue;
-              }
+            let thumbFilename = null;
 
-              // If it's HEIC, convert it to JPEG buffer first
-              if (ext === ".heic" || ext === ".heif") {
-                try {
-                  const outputBuffer = await heicConvert({
-                    buffer: fileBuffer,
-                    format: 'JPEG',
-                    quality: 1
-                  });
-                  fileBuffer = Buffer.from(outputBuffer);
-                } catch (heicError) {
-                  console.error(`Error converting HEIC ${file}: ${heicError.message}`);
-                  continue;
+            // ONLY generate thumbnail if it has GPS (Huge optimization for large libraries)
+            if (hasGps === 1) {
+              try {
+                let fileBuffer = await fs.promises.readFile(filePath);
+                if (fileBuffer && fileBuffer.length > 0) {
+                  // If it's HEIC, convert it to JPEG buffer first
+                  if (ext === ".heic" || ext === ".heif") {
+                    const outputBuffer = await heicConvert({
+                      buffer: fileBuffer,
+                      format: 'JPEG',
+                      quality: 1
+                    });
+                    fileBuffer = Buffer.from(outputBuffer);
+                  }
+
+                  thumbFilename = `thumb_${Date.now()}_${file}`;
+                  const thumbPath = path.join(THUMBS_DIR, thumbFilename);
+                  await sharp(fileBuffer).resize(300, 300, { fit: "cover" }).toFile(thumbPath);
                 }
+              } catch (err) {
+                console.error(`Error generating thumbnail for ${file}: ${err.message}`);
               }
-            } catch (readError) {
-              console.error(`Error reading file ${file}: ${readError.message}`);
-              continue;
-            }
-
-            // Generate thumbnail
-            const thumbFilename = `thumb_${Date.now()}_${file}`;
-            const thumbPath = path.join(THUMBS_DIR, thumbFilename);
-            
-            try {
-              await sharp(fileBuffer).resize(300, 300, { fit: "cover" }).toFile(thumbPath);
-            } catch (e) {
-              console.error(`Error: Failed to process image ${file} (possibly unsupported format like HEIC). Error: ${e.message}`);
-              continue; // Skip this file if thumbnail generation fails
             }
 
             db.prepare(`
@@ -223,7 +247,7 @@ async function startServer() {
             console.error(`Unexpected error processing file ${filePath}:`, fileError);
           }
         }
-        console.log(`Directory ${PHOTOS_DIR}: Identified ${imageFilesCount} images, added ${addedCount} new ones.`);
+        console.log(`Directory ${item.dir}: Processed ${item.files.length} images, added ${addedCount} new ones.`);
       }
       lastScanTime = new Date().toISOString();
       console.log(`Scan complete. Added ${addedCount} photos.`);
@@ -241,7 +265,12 @@ async function startServer() {
 
   // API: Get scan status
   app.get("/api/scan-status", (req, res) => {
-    res.json({ isScanning, lastScanTime });
+    res.json({ 
+      isScanning, 
+      lastScanTime,
+      currentScanTotal,
+      currentScanProcessed
+    });
   });
 
   // API: Manual trigger (still useful)
