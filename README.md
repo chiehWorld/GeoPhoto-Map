@@ -20,7 +20,7 @@ GeoPhoto Map 是一款专为摄影爱好者和 NAS 用户设计的个人照片�
      - 查看当前所有扫描路径。
      - 实时添加新的扫描目录（如挂载的 NAS 路径）。
      - 删除不再需要的目录。
-4. 配置不丢失：
+4. 配置持久化
    - 把 config.json 移到了 /app/data，在网页上添加了 /app/nas_photos_main 等目录后，这些设置会保存在您的宿主机 ./geophoto_data 文件夹中。即使更新镜像或重启容器，设置依然不会丢失。
    - 在 YAML 中把群晖的不同共享文件夹映射到容器内的不同路径（如 /app/path1, /app/path2），然后在网页界面上把这些路径逐一添加进去。
 
@@ -54,8 +54,8 @@ docker build -t geophoto-map .
 ```bash
 docker run -d --name geophoto -p 3000:3000 \
   -v "/你的照片路径:/app/photos_external" \
-  -v "/你的缩略图存储路径:/app/thumbnails" \
-  -v "/你的数据库存储路径:/app/data" \
+  -v "/你的缩略图存储路径:/app/geophoto_thumbs" \
+  -v "/你的数据库存储路径:/app/geophoto_data" \
   geophoto-map
 ```
 
