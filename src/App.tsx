@@ -29,6 +29,7 @@ interface Photo {
   timestamp: string | null;
   thumbnail_path: string;
   filename: string;
+  path: string;
 }
 
 interface Stats {
@@ -416,32 +417,57 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-md px-4"
+              className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-2xl px-4"
             >
-              <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 rounded-2xl p-4 shadow-2xl flex gap-4">
-                <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-700">
+              <div className="bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 rounded-2xl p-5 shadow-2xl flex gap-6 relative overflow-hidden">
+                {/* Background Glow */}
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 blur-[100px] pointer-events-none" />
+                
+                <div className="w-40 h-40 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-700/50 shadow-inner bg-zinc-800">
                   <img 
-                    src={`/api/photos-raw/${selectedPhoto.id}`} 
-                    className="w-full h-full object-cover"
+                    src={`/api/thumbnails/${selectedPhoto.thumbnail_path}`} 
+                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                    alt={selectedPhoto.filename}
                   />
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <h2 className="text-lg font-bold truncate">{selectedPhoto.filename}</h2>
-                  <div className="flex items-center gap-2 text-zinc-400 text-xs mt-1">
-                    <MapPin className="w-3 h-3" />
-                    <span>{selectedPhoto.latitude?.toFixed(4)}, {selectedPhoto.longitude?.toFixed(4)}</span>
+                
+                <div className="flex-1 min-w-0 flex flex-col justify-center py-1">
+                  <div className="flex items-start justify-between mb-2">
+                    <h2 className="text-xl font-bold truncate text-white tracking-tight">{selectedPhoto.filename}</h2>
+                    <button 
+                      onClick={() => setSelectedPhoto(null)}
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 text-zinc-500 text-[10px] mt-1">
-                    <Info className="w-3 h-3" />
-                    <span>{selectedPhoto.timestamp ? new Date(selectedPhoto.timestamp).toLocaleString() : 'No date info'}</span>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2.5 text-zinc-400 text-xs">
+                      <div className="p-1 bg-zinc-800 rounded-md">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                      </div>
+                      <span className="font-mono">{selectedPhoto.latitude?.toFixed(6)}, {selectedPhoto.longitude?.toFixed(6)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-zinc-400 text-xs">
+                      <div className="p-1 bg-zinc-800 rounded-md">
+                        <Info className="w-3.5 h-3.5 text-blue-400" />
+                      </div>
+                      <span>{selectedPhoto.timestamp ? new Date(selectedPhoto.timestamp).toLocaleString() : 'No date info'}</span>
+                    </div>
+
+                    <div className="flex items-start gap-2.5 text-zinc-500 text-[10px] mt-3 pt-3 border-t border-zinc-800/50">
+                      <div className="p-1 bg-zinc-800/50 rounded-md mt-0.5">
+                        <Folder className="w-3 h-3 text-zinc-600" />
+                      </div>
+                      <div className="flex-1 break-all leading-relaxed">
+                        <span className="text-zinc-600 uppercase font-bold mr-1">Path:</span>
+                        {selectedPhoto.path}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setSelectedPhoto(null)}
-                  className="self-start p-1 hover:bg-zinc-800 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-zinc-500" />
-                </button>
               </div>
             </motion.div>
           )}

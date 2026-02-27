@@ -91,7 +91,7 @@ async function startServer() {
 
   // API: Get only mapped photos for the map (Lightweight)
   app.get("/api/photos/mapped", (req, res) => {
-    const photos = db.prepare("SELECT id, latitude, longitude, thumbnail_path, filename, timestamp FROM photos WHERE has_gps = 1").all();
+    const photos = db.prepare("SELECT id, latitude, longitude, thumbnail_path, filename, timestamp, path FROM photos WHERE has_gps = 1").all();
     res.json(photos);
   });
 
